@@ -1,0 +1,10 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:myname="http://www.season.com/schema/user"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+       http://www.season.com/schema/user
+       http://www.season.com/schema/user.xsd">
+
+	<myname:user id="user" email="710205009@qq.com" userName="season"/>
+</beans>
