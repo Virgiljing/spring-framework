@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,16 @@
 
 package org.springframework.web.reactive.function.client
 
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.reactive.awaitSingle
 import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.reactive.awaitSingle
+import kotlinx.coroutines.reactive.awaitSingle
+import kotlinx.coroutines.reactor.asFlux
+import kotlinx.coroutines.reactor.mono
 import org.reactivestreams.Publisher
 import org.springframework.core.ParameterizedTypeReference
+import org.springframework.http.ResponseEntity
 import org.springframework.web.reactive.function.client.WebClient.RequestBodySpec
 import org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec
 import reactor.core.publisher.Flux
@@ -43,7 +47,7 @@ inline fun <reified T : Any, S : Publisher<T>> RequestBodySpec.body(publisher: S
  * leveraging Kotlin reified type parameters. This extension is not subject to type
  * erasure and retains actual generic type arguments.
  * @param flow the [Flow] to write to the request
- * @param <T> the type of the elements contained in the flow
+ * @param T the type of the elements contained in the flow
  * @author Sebastien Deleuze
  * @since 5.2
  */
@@ -57,7 +61,7 @@ inline fun <reified T : Any> RequestBodySpec.body(flow: Flow<T>): RequestHeaders
  * @param producer the producer to write to the request. This must be a
  * [Publisher] or another producer adaptable to a
  * [Publisher] via [org.springframework.core.ReactiveAdapterRegistry]
- * @param <T> the type of the elements contained in the producer
+ * @param T the type of the elements contained in the producer
  * @author Sebastien Deleuze
  * @since 5.2
  */
@@ -70,9 +74,30 @@ inline fun <reified T : Any> RequestBodySpec.body(producer: Any): RequestHeaders
  * @author Sebastien Deleuze
  * @since 5.2
  */
+@Suppress("DEPRECATION")
+@Deprecated("Deprecated since 5.3 due to the possibility to leak memory and/or connections; please," +
+		"use awaitExchange { } or exchangeToFlow { } instead; consider also using retrieve()" +
+		"which provides access to the response status and headers via ResponseEntity along with error status handling.")
 suspend fun RequestHeadersSpec<out RequestHeadersSpec<*>>.awaitExchange(): ClientResponse =
 		exchange().awaitSingle()
 
+/**
+ * Coroutines variant of [WebClient.RequestHeadersSpec.exchangeToMono].
+ *
+ * @author Sebastien Deleuze
+ * @since 5.3
+ */
+suspend fun <T: Any> RequestHeadersSpec<out RequestHeadersSpec<*>>.awaitExchange(responseHandler: suspend (ClientResponse) -> T): T =
+		exchangeToMono { mono(Dispatchers.Unconfined) { responseHandler.invoke(it) } }.awaitSingle()
+
+/**
+ * Coroutines variant of [WebClient.RequestHeadersSpec.exchangeToFlux].
+ *
+ * @author Sebastien Deleuze
+ * @since 5.3
+ */
+fun <T: Any> RequestHeadersSpec<out RequestHeadersSpec<*>>.exchangeToFlow(responseHandler: (ClientResponse) -> Flow<T>): Flow<T> =
+		exchangeToFlux { responseHandler.invoke(it).asFlux() }.asFlow()
 
 /**
  * Extension for [WebClient.ResponseSpec.bodyToMono] providing a `bodyToMono<Foo>()` variant
@@ -103,7 +128,6 @@ inline fun <reified T : Any> WebClient.ResponseSpec.bodyToFlux(): Flux<T> =
  * @author Sebastien Deleuze
  * @since 5.2
  */
-@ExperimentalCoroutinesApi
 inline fun <reified T : Any> WebClient.ResponseSpec.bodyToFlow(): Flow<T> =
 		bodyToFlux<T>().asFlow()
 
@@ -115,3 +139,33 @@ inline fun <reified T : Any> WebClient.ResponseSpec.bodyToFlow(): Flow<T> =
  */
 suspend inline fun <reified T : Any> WebClient.ResponseSpec.awaitBody() : T =
 		bodyToMono<T>().awaitSingle()
+
+/**
+ * Extension for [WebClient.ResponseSpec.toEntity] providing a `toEntity<Foo>()` variant
+ * leveraging Kotlin reified type parameters. This extension is not subject to type
+ * erasure and retains actual generic type arguments.
+ *
+ * @since 5.3.2
+ */
+inline fun <reified T : Any> WebClient.ResponseSpec.toEntity(): Mono<ResponseEntity<T>> =
+		toEntity(object : ParameterizedTypeReference<T>() {})
+
+/**
+ * Extension for [WebClient.ResponseSpec.toEntityList] providing a `toEntityList<Foo>()` variant
+ * leveraging Kotlin reified type parameters. This extension is not subject to type
+ * erasure and retains actual generic type arguments.
+ *
+ * @since 5.3.2
+ */
+inline fun <reified T : Any> WebClient.ResponseSpec.toEntityList(): Mono<ResponseEntity<List<T>>> =
+		toEntityList(object : ParameterizedTypeReference<T>() {})
+
+/**
+ * Extension for [WebClient.ResponseSpec.toEntityFlux] providing a `toEntityFlux<Foo>()` variant
+ * leveraging Kotlin reified type parameters. This extension is not subject to type
+ * erasure and retains actual generic type arguments.
+ *
+ * @since 5.3.2
+ */
+inline fun <reified T : Any> WebClient.ResponseSpec.toEntityFlux(): Mono<ResponseEntity<Flux<T>>> =
+		toEntityFlux(object : ParameterizedTypeReference<T>() {})

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package org.springframework.transaction.reactive
 
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
@@ -44,6 +43,19 @@ class TransactionalOperatorExtensionsTests {
 	}
 
 	@Test
+	fun commitWithEmptySuspendingFunction() {
+		val operator = TransactionalOperator.create(tm, DefaultTransactionDefinition())
+		runBlocking {
+			operator.executeAndAwait {
+				delay(1)
+				null
+			}
+		}
+		assertThat(tm.commit).isTrue()
+		assertThat(tm.rollback).isFalse()
+	}
+
+	@Test
 	fun rollbackWithSuspendingFunction() {
 		val operator = TransactionalOperator.create(tm, DefaultTransactionDefinition())
 		runBlocking {
@@ -62,7 +74,6 @@ class TransactionalOperatorExtensionsTests {
 	}
 
 	@Test
-	@ExperimentalCoroutinesApi
 	fun commitWithFlow() {
 		val operator = TransactionalOperator.create(tm, DefaultTransactionDefinition())
 		val flow = flow {
@@ -80,7 +91,6 @@ class TransactionalOperatorExtensionsTests {
 	}
 
 	@Test
-	@ExperimentalCoroutinesApi
 	fun rollbackWithFlow() {
 		val operator = TransactionalOperator.create(tm, DefaultTransactionDefinition())
 		val flow = flow<Int> {

@@ -30,7 +30,6 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.http.codec.multipart.Part;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
@@ -39,11 +38,21 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
 /**
- * Builder for the body of a multipart request, producing
- * {@code MultiValueMap<String, HttpEntity>}, which can be provided to the
- * {@code WebClient} through the {@code body} method.
+ * Prepare the body of a multipart request, resulting in a
+ * {@code MultiValueMap<String, HttpEntity>}. Parts may be concrete values or
+ * via asynchronous types such as Reactor {@code Mono}, {@code Flux}, and
+ * others registered in the
+ * {@link org.springframework.core.ReactiveAdapterRegistry ReactiveAdapterRegistry}.
  *
- * Examples:
+ * <p>This builder is intended for use with the reactive
+ * {@link org.springframework.web.reactive.function.client.WebClient WebClient}.
+ * For multipart requests with the {@code RestTemplate}, simply create and
+ * populate a {@code MultiValueMap<String, HttpEntity>} as shown in the Javadoc for
+ * {@link org.springframework.http.converter.FormHttpMessageConverter FormHttpMessageConverter}
+ * and in the
+ * <a href="https://docs.spring.io/spring/docs/current/spring-framework-reference/integration.html#rest-template-multipart">reference docs</a>.
+ *
+ * <p>Below are examples of using this builder:
  * <pre class="code">
  *
  * // Add form field
@@ -119,12 +128,13 @@ public final class MultipartBodyBuilder {
 		Assert.notNull(part, "'part' must not be null");
 
 		if (part instanceof Part) {
-			PartBuilder builder = asyncPart(name, ((Part) part).content(), DataBuffer.class);
+			Part partObject = (Part) part;
+			PartBuilder builder = asyncPart(name, partObject.content(), DataBuffer.class);
+			if (!partObject.headers().isEmpty()) {
+				builder.headers(headers -> headers.putAll(partObject.headers()));
+			}
 			if (contentType != null) {
 				builder.contentType(contentType);
-			}
-			if (part instanceof FilePart) {
-				builder.filename(((FilePart) part).filename());
 			}
 			return builder;
 		}
@@ -171,7 +181,6 @@ public final class MultipartBodyBuilder {
 	 * @param elementClass the type of elements contained in the publisher
 	 * @return builder that allows for further customization of part headers
 	 */
-	@SuppressWarnings("unchecked")
 	public <T, P extends Publisher<T>> PartBuilder asyncPart(String name, P publisher, Class<T> elementClass) {
 		Assert.hasLength(name, "'name' must not be empty");
 		Assert.notNull(publisher, "'publisher' must not be null");
